@@ -1,63 +1,39 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
-	"io/ioutil"
+	"log"
 	"os"
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 )
 
 func main() {
+	files := []string{} // Add your file names here
+	trigramFreq := make(map[string]int)
+
 	if len(os.Args) > 1 {
 		// Read from command-line arguments
 		for _, filename := range os.Args[1:] {
-			processFile(filename)
+			files = append(files, filename)
+
 		}
-	} else {
-		// Read from standard input (pipe)
-		fmt.Println("Reading input from pipe:")
-
-		// Read the entire input from the pipe
-		inputBytes, err := ioutil.ReadAll(os.Stdin)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "Error reading input:", err)
-			return
-		}
-
-		// Process the input using the processContent function
-		processContent(inputBytes)
-	}
-}
-
-func processFile(filename string) {
-	fmt.Println("Processing file:", filename)
-	// Add your file processing logic here
-
-	// Read the content of the file
-	content, err := ioutil.ReadFile(filename)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "Error reading file:", err)
-		return
 	}
 
-	// Process the content using the processContent function
-	processContent(content)
-}
+	var wg sync.WaitGroup
 
-func processContent(content []byte) {
-	// Convert content to lowercase and split into words
-	text := strings.ToLower(string(content))
-	wordRegex := regexp.MustCompile(`\b[\p{L}\p{Nd}'’]+\b`)
-	words := wordRegex.FindAllString(text, -1)
-
-	// Calculate three-word sequences and their frequencies
-	trigramFreq := make(map[string]int)
-	for i := 0; i <= len(words)-3; i++ {
-		trigram := strings.Join(words[i:i+3], " ")
-		trigramFreq[trigram]++
+	for _, filename := range files {
+		wg.Add(1)
+		go func(filename string) {
+			defer wg.Done()
+			processFile(filename, trigramFreq)
+		}(filename)
 	}
+
+	wg.Wait()
 
 	// Convert trigram frequencies to a slice for sorting
 	trigramSlice := make([]trigramEntry, 0, len(trigramFreq))
@@ -66,10 +42,12 @@ func processContent(content []byte) {
 	}
 
 	// Sort trigram entries by frequency in descending order
-	sortTrigramSlice(trigramSlice)
+	sort.Slice(trigramSlice, func(i, j int) bool {
+		return trigramSlice[i].Frequency > trigramSlice[j].Frequency
+	})
 
 	// Print sorted trigram frequencies
-	for _, entry := range trigramSlice[:5] {
+	for _, entry := range trigramSlice[:100] {
 		fmt.Printf("%s: %d\n", entry.Trigram, entry.Frequency)
 	}
 }
@@ -79,8 +57,33 @@ type trigramEntry struct {
 	Frequency int
 }
 
-func sortTrigramSlice(slice []trigramEntry) {
-	sort.Slice(slice, func(i, j int) bool {
-		return slice[i].Frequency > slice[j].Frequency
-	})
+func processFile(filename string, trigramFreq map[string]int) {
+	file, err := os.Open(filename)
+	if err != nil {
+		log.Fatalf("Error opening file %s: %v", filename, err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	scanner.Split(bufio.ScanWords)
+	wordRegex := regexp.MustCompile(`\b[\p{L}\p{Nd}'’]+\b`)
+
+	words := make([]string, 0, 3)
+
+	for scanner.Scan() {
+		word := wordRegex.FindString(scanner.Text())
+		if word != "" {
+			word = strings.ToLower(word)
+			words = append(words, word)
+			if len(words) == 3 {
+				trigram := strings.Join(words, " ")
+				trigramFreq[trigram]++
+				words = words[1:]
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		log.Fatalf("Error reading file %s: %v", filename, err)
+	}
 }
