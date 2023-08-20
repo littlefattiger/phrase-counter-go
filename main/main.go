@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"regexp"
@@ -21,33 +22,38 @@ func main() {
 			files = append(files, filename)
 
 		}
+		var wg sync.WaitGroup
+
+		for _, filename := range files {
+			wg.Add(1)
+			go func(filename string) {
+				defer wg.Done()
+				processFile(filename, trigramFreq)
+			}(filename)
+		}
+
+		wg.Wait()
+
+	} else {
+		fmt.Println("Reading input from pipe:")
+
+		// Read the entire input from the pipe
+		inputBytes, err := ioutil.ReadAll(os.Stdin)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Error reading input:", err)
+			return
+		}
+
+		// Process the input using the processContent function
+		processContent(inputBytes, trigramFreq)
 	}
 
-	var wg sync.WaitGroup
-
-	for _, filename := range files {
-		wg.Add(1)
-		go func(filename string) {
-			defer wg.Done()
-			processFile(filename, trigramFreq)
-		}(filename)
-	}
-
-	wg.Wait()
-
-	// Convert trigram frequencies to a slice for sorting
 	trigramSlice := make([]trigramEntry, 0, len(trigramFreq))
 	for trigram, freq := range trigramFreq {
 		trigramSlice = append(trigramSlice, trigramEntry{Trigram: trigram, Frequency: freq})
 	}
-
-	// Sort trigram entries by frequency in descending order
-	sort.Slice(trigramSlice, func(i, j int) bool {
-		return trigramSlice[i].Frequency > trigramSlice[j].Frequency
-	})
-
-	// Print sorted trigram frequencies
-	for _, entry := range trigramSlice[:100] {
+	sortTrigramSlice(trigramSlice)
+	for _, entry := range trigramSlice[:5] {
 		fmt.Printf("%s: %d\n", entry.Trigram, entry.Frequency)
 	}
 }
@@ -55,6 +61,12 @@ func main() {
 type trigramEntry struct {
 	Trigram   string
 	Frequency int
+}
+
+func sortTrigramSlice(slice []trigramEntry) {
+	sort.Slice(slice, func(i, j int) bool {
+		return slice[i].Frequency > slice[j].Frequency
+	})
 }
 
 func processFile(filename string, trigramFreq map[string]int) {
@@ -86,4 +98,18 @@ func processFile(filename string, trigramFreq map[string]int) {
 	if err := scanner.Err(); err != nil {
 		log.Fatalf("Error reading file %s: %v", filename, err)
 	}
+}
+
+func processContent(content []byte, trigramFreq map[string]int) {
+	// Convert content to lowercase and split into words
+	text := strings.ToLower(string(content))
+	wordRegex := regexp.MustCompile(`\b[\p{L}\p{Nd}'’]+\b`)
+	words := wordRegex.FindAllString(text, -1)
+
+	// Calculate three-word sequences and their frequencies
+	for i := 0; i <= len(words)-3; i++ {
+		trigram := strings.Join(words[i:i+3], " ")
+		trigramFreq[trigram]++
+	}
+
 }
