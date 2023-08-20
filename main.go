@@ -13,7 +13,7 @@ import (
 )
 
 func main() {
-	files := []string{} // Add your file names here
+	files := []string{} // Add the file names here
 	trigramFreq := make(map[string]int)
 	var mu sync.Mutex
 
@@ -38,14 +38,12 @@ func main() {
 	} else {
 		fmt.Println("Reading input from pipe:")
 
-		// Read the entire input from the pipe
 		inputBytes, err := ioutil.ReadAll(os.Stdin)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "Error reading input:", err)
 			return
 		}
 
-		// Process the input using the processContent function
 		processContent(inputBytes, trigramFreq, &mu)
 	}
 
