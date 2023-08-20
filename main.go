@@ -52,7 +52,7 @@ func main() {
 		trigramSlice = append(trigramSlice, trigramEntry{Trigram: trigram, Frequency: freq})
 	}
 	sortTrigramSlice(trigramSlice)
-	for _, entry := range trigramSlice[:5] {
+	for _, entry := range trigramSlice[:100] {
 		fmt.Printf("%s: %d\n", entry.Trigram, entry.Frequency)
 	}
 }
