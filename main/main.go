@@ -15,6 +15,7 @@ import (
 func main() {
 	files := []string{} // Add your file names here
 	trigramFreq := make(map[string]int)
+	var mu sync.Mutex
 
 	if len(os.Args) > 1 {
 		// Read from command-line arguments
@@ -28,7 +29,7 @@ func main() {
 			wg.Add(1)
 			go func(filename string) {
 				defer wg.Done()
-				processFile(filename, trigramFreq)
+				processFile(filename, trigramFreq, &mu)
 			}(filename)
 		}
 
@@ -45,7 +46,7 @@ func main() {
 		}
 
 		// Process the input using the processContent function
-		processContent(inputBytes, trigramFreq)
+		processContent(inputBytes, trigramFreq, &mu)
 	}
 
 	trigramSlice := make([]trigramEntry, 0, len(trigramFreq))
@@ -69,7 +70,7 @@ func sortTrigramSlice(slice []trigramEntry) {
 	})
 }
 
-func processFile(filename string, trigramFreq map[string]int) {
+func processFile(filename string, trigramFreq map[string]int, mu *sync.Mutex) {
 	file, err := os.Open(filename)
 	if err != nil {
 		log.Fatalf("Error opening file %s: %v", filename, err)
@@ -89,7 +90,9 @@ func processFile(filename string, trigramFreq map[string]int) {
 			words = append(words, word)
 			if len(words) == 3 {
 				trigram := strings.Join(words, " ")
+				mu.Lock()
 				trigramFreq[trigram]++
+				mu.Unlock()
 				words = words[1:]
 			}
 		}
@@ -100,7 +103,7 @@ func processFile(filename string, trigramFreq map[string]int) {
 	}
 }
 
-func processContent(content []byte, trigramFreq map[string]int) {
+func processContent(content []byte, trigramFreq map[string]int, mu *sync.Mutex) {
 	// Convert content to lowercase and split into words
 	text := strings.ToLower(string(content))
 	wordRegex := regexp.MustCompile(`\b[\p{L}\p{Nd}'’]+\b`)
@@ -109,7 +112,9 @@ func processContent(content []byte, trigramFreq map[string]int) {
 	// Calculate three-word sequences and their frequencies
 	for i := 0; i <= len(words)-3; i++ {
 		trigram := strings.Join(words[i:i+3], " ")
+		mu.Lock()
 		trigramFreq[trigram]++
+		mu.Unlock()
 	}
 
 }
